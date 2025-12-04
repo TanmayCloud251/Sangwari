@@ -1,0 +1,7 @@
+{
+  "name": "Sangwari",
+  "description": "A friendly Chhattisgarhi AI companion for casual conversation via text and real-time voice.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
