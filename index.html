@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -5,35 +6,63 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Sangwari - Your Chhattisgarhi Friend</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
       tailwind.config = {
         theme: {
           extend: {
             fontFamily: {
-              sans: ['Outfit', 'sans-serif'],
-            },
-            colors: {
-              cream: {
-                50: '#FFFDF5',
-                100: '#FFF8E1',
-                200: '#FFE0B2',
-              },
-              brand: {
-                orange: '#FF9800',
-                dark: '#2D3748',
-                green: '#4CAF50',
-                red: '#EF5350'
-              }
+              sans: ['var(--font-main)', 'Outfit', 'sans-serif'],
             }
           }
         }
       }
     </script>
     <style>
-      body {
-        background-color: #FFFDF5;
+      :root {
+        --primary-color: #FF9800;
+        --secondary-color: #0D9488;
+        --bg-color: #FFFDF5;
+        --surface-color: #FFF8E1;
+        --text-color: #1F2937;
+        --font-main: 'Outfit';
+        --font-size-base: 16px;
       }
+      body {
+        background-color: var(--bg-color);
+        color: var(--text-color);
+        font-family: var(--font-main), sans-serif;
+        font-size: var(--font-size-base);
+        transition: background-color 0.3s ease, color 0.3s ease;
+      }
+
+      /* Custom Styled Scrollbar */
+      ::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+      }
+
+      ::-webkit-scrollbar-track {
+        background: var(--bg-color);
+      }
+
+      ::-webkit-scrollbar-thumb {
+        background: var(--primary-color);
+        border-radius: 20px;
+        border: 3px solid var(--bg-color);
+        opacity: 0.8;
+      }
+
+      ::-webkit-scrollbar-thumb:hover {
+        background: var(--secondary-color);
+      }
+
+      /* Firefox support */
+      * {
+        scrollbar-width: thin;
+        scrollbar-color: var(--primary-color) var(--bg-color);
+      }
+
       .scrollbar-hide::-webkit-scrollbar {
           display: none;
       }
@@ -47,6 +76,25 @@
       @keyframes wave {
         0%, 100% { height: 20%; }
         50% { height: 100%; }
+      }
+
+      /* Screen Transitions */
+      @keyframes slide-up {
+        from { transform: translateY(30px); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+      }
+
+      @keyframes slide-left {
+        from { transform: translateX(30px); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+      }
+
+      .animate-screen-up {
+        animation: slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      }
+
+      .animate-screen-left {
+        animation: slide-left 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
       }
     </style>
   <script type="importmap">

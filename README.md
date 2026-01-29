@@ -1,28 +1,35 @@
-# 🌼 Sangwari — Chhattisgarhi AI Chatbot (Initial Version)
+# 🌼 Sangwari — Chhattisgarhi AI Chatbot
 
-**Sangwari** is a friendly AI-powered chatbot that communicates in **Chhattisgarhi**, designed to feel like talking to a close local friend.  
-This initial version focuses on **core conversational AI and audio interaction**, keeping the interface simple and fixed for ease of use.
+**Sangwari** is a friendly AI-powered chatbot that converses in **Chhattisgarhi**, designed to feel like talking to a close friend.  
+It supports **text and audio conversations**, offers **fully customizable themes**, and allows flexible **sidebar placement**, all within a bright, minimal Indian-inspired interface.
 
 ---
 
 ## ✨ Key Features
 
-### 🗣️ Chhattisgarhi Conversations
-- Always responds in **Chhattisgarhi**
-- Friendly, casual, and conversational tone
-- Accepts English or Hindi input and replies in Chhattisgarhi
+### 🗣️ Friendly Chhattisgarhi Conversations
+- Always replies in **Chhattisgarhi**
+- Casual, warm, friend-like tone
+- Understands English/Hindi input and responds in Chhattisgarhi
 
-### 🎙️ Audio Conversation
+### 🎙️ Audio Conversation Support
 - Voice input using microphone
-- Speech-to-Text (STT) for understanding spoken queries
-- Text-to-Speech (TTS) for audio responses
-- Smooth voice playback in the browser
+- Speech-to-Text (STT) for understanding audio
+- Text-to-Speech (TTS) for spoken replies
+- Smooth, natural audio playback in browser
 
-### 🖥️ Simple & Fixed Interface
-- Clean and minimal chat layout
-- Fixed sidebar position
-- Fixed color theme
-- Designed for clarity and ease of interaction
+### 🎨 Fully Customizable UI
+- Bright & happy color themes
+- Dark Theme is also present
+- Provides full control over the Theme Customization in the settings
+
+### 📐 Flexible Layout & Sidebar
+- Sidebar placement options:
+  - Top (Default)
+  - Left
+  - Right
+  - Bottom
+- Fully responsive chat layout
 
 ---
 
