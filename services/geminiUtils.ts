@@ -26,11 +26,20 @@ export const getGeminiResponse = async (
   attachment?: { mimeType: string, data: string }
 ): Promise<GeminiResponse> => {
   try {
+    // 1. Initialize API
+    if (!process.env.API_KEY) {
+      throw new Error("API Key is missing in environment variables.");
+    }
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
-    const parts: any[] = [{ text: userMessage }];
+    // 2. Prepare User Parts
+    const userParts: any[] = [];
+    if (userMessage.trim()) {
+      userParts.push({ text: userMessage });
+    }
+    
     if (attachment) {
-      parts.push({
+      userParts.push({
         inlineData: {
           mimeType: attachment.mimeType,
           data: attachment.data
@@ -38,18 +47,40 @@ export const getGeminiResponse = async (
       });
     }
 
+    // Ensure we have at least something to send
+    if (userParts.length === 0) {
+      userParts.push({ text: "Describe this file" });
+    }
+
+    // 3. Clean and Validate History
+    // Gemini expects 'user' and 'model' roles. 
+    const cleanedHistory = history.map(h => ({
+      role: h.role === 'model' ? 'model' : 'user',
+      parts: Array.isArray(h.parts) ? h.parts : [{ text: String(h.parts) }]
+    })).filter(h => h.parts && h.parts.length > 0);
+
+    console.log("DEBUG: Sending request to Gemini...", {
+      historyLength: cleanedHistory.length,
+      currentParts: userParts
+    });
+
+    // 4. Call Generate Content
     const response: GenerateContentResponse = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: [
-        ...history,
-        { role: 'user', parts }
+        ...cleanedHistory,
+        { role: 'user', parts: userParts }
       ],
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
+        // If chat fails, try commenting out the tools line below to check if Search is the issue
         tools: [{ googleSearch: {} }],
+        temperature: 0.7,
       },
     });
 
+    // 5. Process Output
+    const text = response.text;
     const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
     const groundingUrls = groundingChunks?.map((chunk: any) => ({
       title: chunk.web?.title || 'Source',
@@ -57,13 +88,23 @@ export const getGeminiResponse = async (
     })).filter((item: any) => item.uri !== '') || [];
 
     return {
-      text: response.text || "Kuch gadbad ho gaya sangwari.",
+      text: text || "Main samajh nahi paaye, pheri se bolih?",
       groundingUrls
     };
-  } catch (error) {
-    console.error("Error fetching Gemini response:", error);
+  } catch (error: any) {
+    // Log the full error to the browser console for user diagnostics
+    console.error("GEMINI API ERROR:", error);
+    
+    let userFriendlyError = "Maaf karna sangwari, server me kuch dikat he.";
+    
+    if (error.message?.includes("API_KEY_INVALID")) {
+      userFriendlyError = "API Key sahi nahi he sangwari. Settings check karo.";
+    } else if (error.message?.includes("model not found")) {
+      userFriendlyError = "Model nahi milat he. Dusra model koshish kar saktho.";
+    }
+
     return {
-      text: "Maaf karna sangwari, server me kuch dikat he. Thoda deri baad koshish karo.",
+      text: userFriendlyError + " (Error: " + (error.message || "Unknown") + ")",
       groundingUrls: []
     };
   }
