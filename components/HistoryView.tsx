@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { ChatSession } from '../types';
 import { MessageSquare, Calendar, Trash2, ChevronRight, ChevronDown } from 'lucide-react';
 import { deleteSession } from '../services/storage';
+import { useFeedback } from '../services/FeedbackContext';
 
 interface HistoryViewProps {
   sessions: ChatSession[];
@@ -11,6 +12,7 @@ interface HistoryViewProps {
 }
 
 const HistoryView: React.FC<HistoryViewProps> = ({ sessions, onSelectSession, onRefresh }) => {
+  const { showConfirm } = useFeedback();
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
     'Aaj': true,
     'Kal': true,
@@ -24,10 +26,14 @@ const HistoryView: React.FC<HistoryViewProps> = ({ sessions, onSelectSession, on
 
   const handleDelete = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    if (confirm("Kya aap ye batchit mitaana chahate ho?")) {
-      deleteSession(id);
-      onRefresh();
-    }
+    showConfirm(
+      "Batchit Mitaana Hai?",
+      "Kya aap ye batchit mitaana chahate ho? Ye wapas nahi aayege.",
+      () => {
+        deleteSession(id);
+        onRefresh();
+      }
+    );
   };
 
   const groupSessions = () => {

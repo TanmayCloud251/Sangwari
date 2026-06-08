@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { AppScreen } from '../types';
 import { supabase } from '../services/supabase';
+import { useFeedback } from '../services/FeedbackContext';
 
 interface AuthPageProps {
   onLogin: () => void;
 }
 
 const AuthPage: React.FC<AuthPageProps> = ({ onLogin }) => {
+  const { showAlert } = useFeedback();
   const [isLogin, setIsLogin] = useState(false); // Default to signup based on screenshot
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -31,7 +33,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ onLogin }) => {
           password,
         });
         if (signUpError) throw signUpError;
-        alert('Signup successful! Please check your email for confirmation if required, or just try logging in.');
+        showAlert('Signup Safal Rahe!', 'Tumar account ban gaye he. Email check kara confirm kare bar, ya direct login kar ke dekha.');
       }
       onLogin();
     } catch (err: any) {

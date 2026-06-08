@@ -10,6 +10,7 @@ import SettingsView from './components/SettingsView';
 import { Menu } from 'lucide-react';
 import { loadSessions, updateSession, loadSettings, saveSettings } from './services/storage';
 import { supabase } from './services/supabase';
+import { useFeedback } from './services/FeedbackContext';
 
 const DEFAULT_WELCOME_MSG: Message = {
   id: 'welcome-1',
@@ -27,6 +28,7 @@ const createNewSession = (): ChatSession => ({
 });
 
 const App: React.FC = () => {
+  const { showConfirm } = useFeedback();
   const [currentScreen, setCurrentScreen] = useState<AppScreen>(AppScreen.AUTH);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -99,7 +101,13 @@ const App: React.FC = () => {
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    showConfirm(
+      "Log Out Karna Hai?",
+      "Kya aap sangwari se bahar nikalna chahate ho?",
+      async () => {
+        await supabase.auth.signOut();
+      }
+    );
   };
 
   const handleNewChat = () => {
