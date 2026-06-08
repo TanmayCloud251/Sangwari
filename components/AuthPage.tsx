@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AppScreen } from '../types';
+import { supabase } from '../services/supabase';
 
 interface AuthPageProps {
   onLogin: () => void;
@@ -9,12 +10,35 @@ const AuthPage: React.FC<AuthPageProps> = ({ onLogin }) => {
   const [isLogin, setIsLogin] = useState(false); // Default to signup based on screenshot
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Simulate auth
-    onLogin();
+    setLoading(true);
+    setError(null);
+
+    try {
+      if (isLogin) {
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        if (signInError) throw signInError;
+      } else {
+        const { error: signUpError } = await supabase.auth.signUp({
+          email,
+          password,
+        });
+        if (signUpError) throw signUpError;
+        alert('Signup successful! Please check your email for confirmation if required, or just try logging in.');
+      }
+      onLogin();
+    } catch (err: any) {
+      setError(err.message || 'An error occurred during authentication');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -51,9 +75,15 @@ const AuthPage: React.FC<AuthPageProps> = ({ onLogin }) => {
             {isLogin ? 'Wapas Swagat Hai!' : 'Apan Account Banao'}
           </h2>
 
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 text-red-600 text-sm rounded-lg border border-red-100">
+              {error}
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-gray-500 mb-2">Email / Username</label>
+              <label className="block text-sm font-medium text-gray-500 mb-2">Email</label>
               <input
                 type="email"
                 placeholder="tumar@email.com"
@@ -76,25 +106,12 @@ const AuthPage: React.FC<AuthPageProps> = ({ onLogin }) => {
               />
             </div>
 
-            {!isLogin && (
-              <div>
-                <label className="block text-sm font-medium text-gray-500 mb-2">Confirm Password</label>
-                <input
-                  type="password"
-                  placeholder="••••••••"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full px-4 py-3 bg-cream-50 rounded-xl border border-transparent focus:border-brand-orange focus:bg-white focus:ring-0 transition-all outline-none text-gray-700"
-                  required
-                />
-              </div>
-            )}
-
             <button
               type="submit"
-              className="w-full bg-gradient-to-r from-orange-400 to-amber-500 text-white font-bold py-3.5 rounded-xl shadow-lg hover:shadow-xl hover:from-orange-500 hover:to-amber-600 transition-all transform active:scale-95"
+              disabled={loading}
+              className="w-full bg-gradient-to-r from-orange-400 to-amber-500 text-white font-bold py-3.5 rounded-xl shadow-lg hover:shadow-xl hover:from-orange-500 hover:to-amber-600 transition-all transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isLogin ? 'Log In' : 'Sign Up'}
+              {loading ? 'Sabar kara...' : (isLogin ? 'Log In' : 'Sign Up')}
             </button>
           </form>
 

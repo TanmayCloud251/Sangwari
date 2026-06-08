@@ -9,6 +9,7 @@ import HistoryView from './components/HistoryView';
 import SettingsView from './components/SettingsView';
 import { Menu } from 'lucide-react';
 import { loadSessions, updateSession, loadSettings, saveSettings } from './services/storage';
+import { supabase } from './services/supabase';
 
 const DEFAULT_WELCOME_MSG: Message = {
   id: 'welcome-1',
@@ -31,6 +32,31 @@ const App: React.FC = () => {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSession, setActiveSession] = useState<ChatSession | null>(null);
   const [settings, setSettings] = useState<AppSettings>(loadSettings());
+  const [session, setSession] = useState<any>(null);
+
+  // Supabase session handling
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session) {
+        handleLogin();
+      }
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (session) {
+        handleLogin();
+      } else {
+        setCurrentScreen(AppScreen.AUTH);
+        setActiveSession(null);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   // Apply settings to CSS variables
   useEffect(() => {
@@ -72,9 +98,8 @@ const App: React.FC = () => {
     setCurrentScreen(AppScreen.HOME);
   };
 
-  const handleLogout = () => {
-    setCurrentScreen(AppScreen.AUTH);
-    setActiveSession(null);
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
   };
 
   const handleNewChat = () => {
