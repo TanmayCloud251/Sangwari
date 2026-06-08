@@ -20,7 +20,6 @@ export interface Message {
   text: string;
   timestamp: number;
   attachment?: Attachment;
-  groundingUrls?: { title: string; uri: string }[];
 }
 
 export interface UserProfile {
