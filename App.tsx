@@ -33,27 +33,34 @@ const App: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSession, setActiveSession] = useState<ChatSession | null>(null);
-  const [settings, setSettings] = useState<AppSettings>(loadSettings());
+  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [session, setSession] = useState<any>(null);
+  const [isLoadingData, setIsLoadingData] = useState(true);
 
   // Supabase session handling
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    const initSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
       setSession(session);
       if (session) {
-        handleLogin();
+        await handleLogin();
+      } else {
+        setIsLoadingData(false);
       }
-    });
+    };
+
+    initSession();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
       if (session) {
-        handleLogin();
+        await handleLogin();
       } else {
         setCurrentScreen(AppScreen.AUTH);
         setActiveSession(null);
+        setIsLoadingData(false);
       }
     });
 
@@ -62,42 +69,51 @@ const App: React.FC = () => {
 
   // Apply settings to CSS variables
   useEffect(() => {
-    const root = document.documentElement;
-    root.style.setProperty('--primary-color', settings.primaryColor);
-    root.style.setProperty('--secondary-color', settings.secondaryColor);
-    root.style.setProperty('--bg-color', settings.backgroundColor);
-    root.style.setProperty('--surface-color', settings.surfaceColor);
-    root.style.setProperty('--text-color', settings.textColor);
-    root.style.setProperty('--font-main', settings.fontFamily);
+    const applySettings = async () => {
+      const root = document.documentElement;
+      root.style.setProperty('--primary-color', settings.primaryColor);
+      root.style.setProperty('--secondary-color', settings.secondaryColor);
+      root.style.setProperty('--bg-color', settings.backgroundColor);
+      root.style.setProperty('--surface-color', settings.surfaceColor);
+      root.style.setProperty('--text-color', settings.textColor);
+      root.style.setProperty('--font-main', settings.fontFamily);
+      
+      const sizeMap = { sm: '14px', base: '16px', lg: '18px', xl: '20px' };
+      root.style.setProperty('--font-size-base', sizeMap[settings.fontSize]);
+
+      document.body.style.fontFamily = `'${settings.fontFamily}', sans-serif`;
+      document.body.style.fontSize = sizeMap[settings.fontSize];
+      document.body.style.backgroundColor = settings.backgroundColor;
+      document.body.style.color = settings.textColor;
+
+      if (session) {
+        await saveSettings(settings);
+      }
+    };
     
-    const sizeMap = { sm: '14px', base: '16px', lg: '18px', xl: '20px' };
-    root.style.setProperty('--font-size-base', sizeMap[settings.fontSize]);
+    applySettings();
+  }, [settings, session]);
 
-    document.body.style.fontFamily = `'${settings.fontFamily}', sans-serif`;
-    document.body.style.fontSize = sizeMap[settings.fontSize];
-    document.body.style.backgroundColor = settings.backgroundColor;
-    document.body.style.color = settings.textColor;
-
-    saveSettings(settings);
-  }, [settings]);
-
-  // Load history on mount
-  useEffect(() => {
-    const loaded = loadSessions();
-    setSessions(loaded);
-  }, []);
-
-  const handleLogin = () => {
-    const loaded = loadSessions();
-    if (loaded.length > 0) {
-        setActiveSession(loaded[0]);
+  const handleLogin = async () => {
+    setIsLoadingData(true);
+    const [loadedSettings, loadedSessions] = await Promise.all([
+      loadSettings(),
+      loadSessions()
+    ]);
+    
+    setSettings(loadedSettings);
+    setSessions(loadedSessions);
+    
+    if (loadedSessions.length > 0) {
+        setActiveSession(loadedSessions[0]);
     } else {
         const newSess = createNewSession();
         setActiveSession(newSess);
-        updateSession(newSess);
+        await updateSession(newSess);
         setSessions([newSess]);
     }
     setCurrentScreen(AppScreen.HOME);
+    setIsLoadingData(false);
   };
 
   const handleLogout = async () => {
@@ -110,10 +126,10 @@ const App: React.FC = () => {
     );
   };
 
-  const handleNewChat = () => {
+  const handleNewChat = async () => {
     const newSess = createNewSession();
     setActiveSession(newSess);
-    updateSession(newSess);
+    await updateSession(newSess);
     setSessions(prev => [newSess, ...prev]);
     setCurrentScreen(AppScreen.HOME);
   };
@@ -126,14 +142,26 @@ const App: React.FC = () => {
     }
   };
 
-  const refreshSessions = () => {
-    setSessions(loadSessions());
+  const refreshSessions = async () => {
+    setSessions(await loadSessions());
   };
 
-  const handleUpdateSession = (updated: ChatSession) => {
+  const handleUpdateSession = async (updated: ChatSession) => {
     setActiveSession(updated);
     setSessions(prev => prev.map(s => s.id === updated.id ? updated : s));
+    await updateSession(updated);
   };
+
+  if (isLoadingData && session) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-cream-50">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-brand-orange border-t-transparent rounded-full animate-spin" />
+          <p className="text-gray-600 font-medium">Sabar kara, sangwari aat he...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (currentScreen === AppScreen.AUTH) {
     return <AuthPage onLogin={handleLogin} />;

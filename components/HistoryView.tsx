@@ -29,8 +29,8 @@ const HistoryView: React.FC<HistoryViewProps> = ({ sessions, onSelectSession, on
     showConfirm(
       "Batchit Mitaana Hai?",
       "Kya aap ye batchit mitaana chahate ho? Ye wapas nahi aayege.",
-      () => {
-        deleteSession(id);
+      async () => {
+        await deleteSession(id);
         onRefresh();
       }
     );

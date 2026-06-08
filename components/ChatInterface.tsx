@@ -3,7 +3,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Message, ChatSession, Attachment } from '../types';
 import { getGroqResponse } from '../services/groqUtils';
 import { Send, Mic, Bot, User, X, FileText, ExternalLink } from 'lucide-react';
-import { updateSession } from '../services/storage';
 
 interface ChatInterfaceProps {
   onStartAudio: () => void;
@@ -43,7 +42,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onStartAudio, session, on
     };
     
     onUpdateSession(newSessionState);
-    updateSession(newSessionState);
     
     const currentInput = inputText;
     setInputText('');
@@ -72,7 +70,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onStartAudio, session, on
       };
       
       onUpdateSession(finalSessionState);
-      updateSession(finalSessionState);
     } catch (error) {
       console.error(error);
     } finally {
