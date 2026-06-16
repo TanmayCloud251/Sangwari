@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Message, ChatSession, Attachment } from '../types';
-import { getGroqResponse } from '../services/groqUtils';
+import { getGeminiResponse } from '../services/geminiUtils';
 import { Send, Mic, Bot, User, X, FileText, ExternalLink } from 'lucide-react';
 
 interface ChatInterfaceProps {
@@ -53,7 +53,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onStartAudio, session, on
         parts: [{ text: m.text }]
       }));
 
-      const response = await getGroqResponse(history, currentInput);
+      const response = await getGeminiResponse(history, currentInput);
 
       const botMsg: Message = {
         id: (Date.now() + 1).toString(),

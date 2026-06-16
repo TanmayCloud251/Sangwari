@@ -37,7 +37,15 @@ const AuthPage: React.FC<AuthPageProps> = ({ onLogin }) => {
       }
       onLogin();
     } catch (err: any) {
-      setError(err.message || 'An error occurred during authentication');
+      let userFriendlyMsg = err.message || 'An error occurred during authentication';
+      
+      if (err.message?.includes('email rate limit exceeded')) {
+        userFriendlyMsg = 'Bahut bar koshish ho gaye he sangwari. Thoda deri baad try kara (email limit exceeded). Ek bar email check kar lo, shayad confirmation link mil gaye ho.';
+      } else if (err.message?.includes('Invalid login credentials')) {
+        userFriendlyMsg = 'Email ya password sahi nahi he. Ek bar check kar lo.';
+      }
+      
+      setError(userFriendlyMsg);
     } finally {
       setLoading(false);
     }

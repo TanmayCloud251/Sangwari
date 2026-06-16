@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Mic, PhoneOff, Volume2, VolumeX } from 'lucide-react';
-import { getGroqResponse } from '../services/groqUtils';
+import { getGeminiResponse } from '../services/geminiUtils';
 
 interface AudioInterfaceProps {
   onEndCall: () => void;
@@ -63,7 +63,7 @@ const AudioInterface: React.FC<AudioInterfaceProps> = ({ onEndCall }) => {
         setStatus('thinking');
         
         try {
-          const response = await getGroqResponse([], finalTranscript);
+          const response = await getGeminiResponse([], finalTranscript);
           console.log("AI Response received:", response.text);
           speak(response.text);
         } catch (error: any) {
