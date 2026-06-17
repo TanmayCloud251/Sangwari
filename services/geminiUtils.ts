@@ -32,18 +32,46 @@ export const getGeminiResponse = async (
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    // Using the verified 3.5-flash model as discussed
+    // Using the verified 3.5-flash model
     const model = genAI.getGenerativeModel({ 
       model: "gemini-3.5-flash",
       systemInstruction: SYSTEM_INSTRUCTION
     });
 
     // Clean and Validate History
-    // Gemini expects 'user' and 'model' roles. 
-    const cleanedHistory = history.map(h => ({
+    // Gemini expects alternating 'user' and 'model' roles. 
+    // It also REQUIRES the history to start with a 'user' role.
+    let cleanedHistory = history.map(h => ({
       role: h.role === 'model' ? 'model' : 'user',
       parts: Array.isArray(h.parts) ? h.parts : [{ text: String(h.parts) }]
     }));
+
+    // 1. Ensure history starts with 'user'
+    const firstUserIndex = cleanedHistory.findIndex(h => h.role === 'user');
+    if (firstUserIndex !== -1) {
+      cleanedHistory = cleanedHistory.slice(firstUserIndex);
+    } else {
+      cleanedHistory = [];
+    }
+
+    // 2. Ensure alternating roles (User/Model/User/Model)
+    const alternatingHistory: any[] = [];
+    cleanedHistory.forEach((item) => {
+      if (alternatingHistory.length > 0 && alternatingHistory[alternatingHistory.length - 1].role === item.role) {
+        // Merge parts if consecutive roles are the same
+        alternatingHistory[alternatingHistory.length - 1].parts.push(...item.parts);
+      } else {
+        alternatingHistory.push(item);
+      }
+    });
+
+    // 3. Ensure history ends with 'model' role
+    // If it ends with 'user', it will conflict with the next sendMessage(userParts)
+    if (alternatingHistory.length > 0 && alternatingHistory[alternatingHistory.length - 1].role === 'user') {
+      alternatingHistory.pop();
+    }
+    
+    cleanedHistory = alternatingHistory;
 
     // Prepare user parts with optional attachment
     const userParts: any[] = [{ text: userMessage }];

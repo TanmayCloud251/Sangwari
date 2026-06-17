@@ -167,8 +167,14 @@ const App: React.FC = () => {
     return <AuthPage onLogin={handleLogin} />;
   }
 
-  if (currentScreen === AppScreen.AUDIO) {
-    return <AudioInterface onEndCall={() => setCurrentScreen(AppScreen.HOME)} />;
+  if (currentScreen === AppScreen.AUDIO && activeSession) {
+    return (
+      <AudioInterface 
+        session={activeSession}
+        onUpdateSession={handleUpdateSession}
+        onEndCall={() => setCurrentScreen(AppScreen.HOME)} 
+      />
+    );
   }
 
   // Determine flex container direction and order for desktop

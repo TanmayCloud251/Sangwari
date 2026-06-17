@@ -1,12 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Mic, PhoneOff, Volume2, VolumeX } from 'lucide-react';
+import { Mic, PhoneOff, Volume2, VolumeX, Sparkles } from 'lucide-react';
 import { getGeminiResponse } from '../services/geminiUtils';
+import { ChatSession, Message } from '../types';
 
 interface AudioInterfaceProps {
+  session: ChatSession;
+  onUpdateSession: (session: ChatSession) => void;
   onEndCall: () => void;
 }
 
-const AudioInterface: React.FC<AudioInterfaceProps> = ({ onEndCall }) => {
+const AudioInterface: React.FC<AudioInterfaceProps> = ({ session, onUpdateSession, onEndCall }) => {
   const [status, setStatus] = useState<'idle' | 'connecting' | 'listening' | 'thinking' | 'speaking' | 'error'>('idle');
   const [isMuted, setIsMuted] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -29,12 +32,11 @@ const AudioInterface: React.FC<AudioInterfaceProps> = ({ onEndCall }) => {
     if (recognitionRef.current) return;
 
     recognitionRef.current = new SpeechRecognition();
-    recognitionRef.current.continuous = false; // Keep false for turn-based interaction
+    recognitionRef.current.continuous = false; 
     recognitionRef.current.interimResults = true;
     recognitionRef.current.lang = 'hi-IN';
 
     recognitionRef.current.onstart = () => {
-      console.log("Recognition started");
       if (isMounted.current) {
         setStatus('listening');
         setErrorMessage('');
@@ -58,56 +60,76 @@ const AudioInterface: React.FC<AudioInterfaceProps> = ({ onEndCall }) => {
       }
 
       if (finalTranscript && isMounted.current) {
-        console.log("Final Transcript detected:", finalTranscript);
         setInterimTranscript(finalTranscript);
-        setStatus('thinking');
-        
-        try {
-          const response = await getGeminiResponse([], finalTranscript);
-          console.log("AI Response received:", response.text);
-          speak(response.text);
-        } catch (error: any) {
-          console.error("Transcription/API Error:", error);
-          setStatus('error');
-          setErrorMessage('Response me deri ho rahi he, pheri se koshish karo.');
-        }
+        handleConversation(finalTranscript);
       }
     };
 
     recognitionRef.current.onerror = (event: any) => {
-      console.error("Recognition Error:", event.error);
       if (!isMounted.current) return;
-
       if (event.error === 'no-speech') {
         if (status === 'listening') startListening();
       } else {
         setStatus('error');
-        if (event.error === 'not-allowed') {
-          setErrorMessage('Mic permission nahi he. Settings check karo.');
-        } else if (event.error === 'network') {
-          setErrorMessage('Internet connect nahi he sangwari.');
-        } else {
-          setErrorMessage(`Error: ${event.error}. Pheri se try karo.`);
-        }
+        setErrorMessage(`Error: ${event.error}`);
       }
     };
 
     recognitionRef.current.onend = () => {
-      console.log("Recognition ended, status:", status);
       if (isMounted.current && status === 'listening' && !isMuted) {
-        // Only auto-restart if we are still in listening mode and not muted
         setTimeout(() => startListening(), 200);
       }
     };
+  };
+
+  const handleConversation = async (text: string) => {
+    setStatus('thinking');
+    
+    // 1. Create User Message
+    const userMsg: Message = {
+      id: Date.now().toString(),
+      role: 'user',
+      text: text,
+      timestamp: Date.now()
+    };
+
+    // 2. Prepare history for Gemini
+    const history = session.messages.map(m => ({
+      role: m.role,
+      parts: [{ text: m.text }]
+    }));
+
+    try {
+      const response = await getGeminiResponse(history, text);
+      
+      // 3. Create Model Message
+      const modelMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'model',
+        text: response.text,
+        timestamp: Date.now()
+      };
+
+      // 4. Update Global Session
+      onUpdateSession({
+        ...session,
+        messages: [...session.messages, userMsg, modelMsg],
+        lastMessage: response.text
+      });
+
+      speak(response.text);
+    } catch (error: any) {
+      console.error(error);
+      setStatus('error');
+      setErrorMessage('Kuch dikat ho gaye, pheri se koshish kara.');
+    }
   };
 
   const startListening = () => {
     if (recognitionRef.current && !isMuted && (status === 'listening' || status === 'idle' || status === 'connecting' || status === 'speaking')) {
       try {
         recognitionRef.current.start();
-      } catch (e) {
-        // Already started
-      }
+      } catch (e) {}
     }
   };
 
@@ -116,7 +138,6 @@ const AudioInterface: React.FC<AudioInterfaceProps> = ({ onEndCall }) => {
     setStatus('connecting');
     setInterimTranscript('');
     
-    // Unlock Speech Synthesis by playing a short empty sound or greeting
     if (!audioStarted.current) {
         audioStarted.current = true;
         speak("Jai Johar! Bolih, main sunat haan.");
@@ -127,55 +148,38 @@ const AudioInterface: React.FC<AudioInterfaceProps> = ({ onEndCall }) => {
 
   const speak = (text: string) => {
     if (!isMounted.current) return;
-    
-    console.log("Speaking:", text);
     window.speechSynthesis.cancel();
     
     const utterance = new SpeechSynthesisUtterance(text);
-    
-    // Try to find a good Hindi voice
     const voices = window.speechSynthesis.getVoices();
     const hindiVoice = voices.find(v => v.lang.includes('hi') || v.lang.includes('IN'));
-    if (hindiVoice) {
-        utterance.voice = hindiVoice;
-    }
+    if (hindiVoice) utterance.voice = hindiVoice;
     utterance.lang = 'hi-IN';
-    utterance.rate = 0.9; // Slightly slower for clarity
+    utterance.rate = 1.0;
     
-    utterance.onstart = () => {
-      console.log("TTS onstart");
-      if (isMounted.current) setStatus('speaking');
-    };
-    
+    utterance.onstart = () => { if (isMounted.current) setStatus('speaking'); };
     utterance.onend = () => {
-      console.log("TTS onend");
       if (isMounted.current) {
         setInterimTranscript('');
         setStatus('listening');
         startListening();
       }
     };
-
-    utterance.onerror = (e) => {
-       console.error("TTS Error:", e);
+    utterance.onerror = () => {
        if (isMounted.current) {
         setStatus('listening');
         startListening();
       }
     };
-
     window.speechSynthesis.speak(utterance);
   };
 
   useEffect(() => {
     isMounted.current = true;
-    // Load voices early
     window.speechSynthesis.getVoices();
     return () => {
       isMounted.current = false;
-      if (recognitionRef.current) {
-        try { recognitionRef.current.stop(); } catch(e) {}
-      }
+      if (recognitionRef.current) try { recognitionRef.current.stop(); } catch(e) {}
       window.speechSynthesis.cancel();
     };
   }, []);
@@ -189,103 +193,91 @@ const AudioInterface: React.FC<AudioInterfaceProps> = ({ onEndCall }) => {
     }
   }, [isMuted]);
 
+  const getOrbStateClass = () => {
+    if (status === 'speaking') return 'orb-speaking';
+    if (status === 'thinking') return 'orb-thinking';
+    if (status === 'listening' || status === 'connecting') return 'orb-active';
+    return '';
+  };
+
   return (
-    <div className="flex flex-col h-full bg-cream-50 items-center justify-between py-16 px-4 relative">
-       {/* Top Status */}
-       <div className="text-center w-full max-w-md px-4">
-            <h2 className="text-3xl font-bold text-gray-800 mb-2">Sangwari</h2>
-            <div className="h-24 flex flex-col items-center justify-center">
-                <p className={`text-gray-500 font-medium ${['connecting', 'listening', 'thinking', 'speaking'].includes(status) ? 'animate-pulse' : ''}`}>
-                    {status === 'idle' && 'Tayyar ho?'}
-                    {status === 'connecting' && 'Connecting...'}
-                    {status === 'listening' && 'Listening...'}
-                    {status === 'thinking' && 'Thinking...'}
-                    {status === 'speaking' && 'Speaking...'}
-                    {status === 'error' && 'Connection Error'}
-                </p>
-                {(interimTranscript || status === 'thinking') && (
-                    <p className={`text-gray-400 text-sm mt-2 italic line-clamp-2 px-6 ${status === 'thinking' ? 'opacity-50' : ''}`}>
-                        "{interimTranscript || 'Humm...'}"
-                    </p>
+    <div className="flex flex-col h-full bg-[#050505] items-center justify-between py-12 px-6 relative overflow-hidden transition-all duration-700">
+       {/* Ambient Background Glow */}
+       <div className="absolute inset-0 opacity-20 pointer-events-none">
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[var(--primary-color)] blur-[120px] rounded-full opacity-30" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-[var(--secondary-color)] blur-[100px] rounded-full opacity-20 translate-x-20 -translate-y-20" />
+       </div>
+
+       {/* Header */}
+       <div className="z-10 text-center">
+          <div className="flex items-center justify-center gap-2 mb-1">
+             <Sparkles className="text-[var(--primary-color)] animate-pulse" size={20} />
+             <h2 className="text-xl font-medium text-white/90 tracking-wider">SANGWARI LIVE</h2>
+          </div>
+          <p className="text-white/40 text-sm font-light">Chhattisgarhi Voice Companion</p>
+       </div>
+
+       {/* Central Interactive Orb */}
+       <div className={`relative flex items-center justify-center transition-all duration-500 ${status === 'idle' ? 'scale-75 opacity-50' : 'scale-100'}`}>
+          <div className={`orb-container ${getOrbStateClass()}`}>
+             {/* Layered Gradients */}
+             <div className="orb-layer bg-gradient-to-tr from-[var(--primary-color)] via-orange-400 to-yellow-300 opacity-80" />
+             <div className="orb-layer bg-gradient-to-bl from-[var(--secondary-color)] via-teal-400 to-emerald-300 opacity-60 translate-x-4 -translate-y-4" />
+             <div className="orb-layer bg-gradient-to-br from-purple-500 via-pink-400 to-red-400 opacity-40 -translate-x-6 translate-y-6" />
+             
+             {/* Inner Core */}
+             <div className="absolute inset-4 bg-white/10 backdrop-blur-3xl rounded-full border border-white/20 shadow-inner z-20 flex items-center justify-center">
+                {status === 'idle' && (
+                  <button onClick={handleStartCall} className="w-20 h-20 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center transition-all group">
+                     <Mic size={32} className="text-white group-hover:scale-110 transition-transform" />
+                  </button>
                 )}
-                {errorMessage && (
-                    <p className="text-red-500 text-sm mt-1">{errorMessage}</p>
-                )}
-            </div>
+             </div>
+          </div>
        </div>
 
-       {/* Visualizer */}
-       <div className="relative w-48 h-48 flex items-center justify-center">
-            <div className={`absolute w-full h-full rounded-full bg-green-100 opacity-50 transition-all duration-500 
-                ${status === 'speaking' ? 'scale-150 animate-pulse bg-orange-100' : 
-                  status === 'listening' ? 'scale-110' : 
-                  status === 'thinking' ? 'scale-125 animate-bounce bg-blue-100' : 'scale-100'}`} 
-            />
-            <div className={`w-32 h-32 bg-green-200 rounded-full flex items-center justify-center z-10 relative overflow-hidden shadow-lg border-4 border-white transition-all duration-300 ${status === 'idle' ? 'grayscale opacity-70' : ''}`}>
-                 <img 
-                    src={`https://api.dicebear.com/7.x/micah/svg?seed=Sangwari&backgroundColor=b6e3f4`} 
-                    alt="Sangwari Avatar" 
-                    className="w-full h-full object-cover"
-                 />
-                 {(status === 'idle' || status === 'error') && (
-                     <div className="absolute inset-0 flex items-center justify-center bg-black/20 group cursor-pointer" onClick={handleStartCall}>
-                         <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                             <Mic size={24} className="text-green-600" />
-                         </div>
-                     </div>
-                 )}
-            </div>
+       {/* Transcript Area */}
+       <div className="z-10 w-full max-w-lg text-center h-24 flex flex-col items-center justify-center px-4">
+          {status === 'thinking' && (
+             <div className="flex gap-1.5 mb-2">
+                <div className="w-1.5 h-1.5 bg-white/60 rounded-full animate-bounce" />
+                <div className="w-1.5 h-1.5 bg-white/60 rounded-full animate-bounce [animation-delay:0.2s]" />
+                <div className="w-1.5 h-1.5 bg-white/60 rounded-full animate-bounce [animation-delay:0.4s]" />
+             </div>
+          )}
+          
+          <p className={`text-white/80 text-lg font-light leading-relaxed transition-opacity duration-500 ${interimTranscript ? 'opacity-100' : 'opacity-40'}`}>
+             {interimTranscript ? `"${interimTranscript}"` : (
+                status === 'listening' ? 'Bolih, main sunat haan...' : 
+                status === 'speaking' ? 'Sangwari bolat he...' :
+                status === 'thinking' ? 'Sangwari sochati he...' :
+                status === 'error' ? errorMessage : 'Tayyar ho?'
+             )}
+          </p>
        </div>
 
-       {/* Waveform Animation */}
-       <div className="h-16 flex items-center gap-1.5">
-          {Array.from({length: 12}).map((_, i) => (
-             <div 
-                key={i}
-                className={`w-2 bg-orange-400 rounded-full transition-all duration-150 
-                    ${status === 'speaking' ? 'wave-bar' : status === 'listening' ? 'h-[15%] opacity-50' : 'h-[10%] opacity-20'}`}
-                style={{ 
-                    height: status === 'speaking' ? '60%' : undefined,
-                    animationDelay: `${i * 0.1}s`,
-                }}
-             />
-          ))}
-       </div>
+       {/* Bottom Controls */}
+       <div className="z-10 flex items-center gap-10">
+          <button 
+            onClick={() => setIsMuted(!isMuted)}
+            className={`w-14 h-14 rounded-full flex items-center justify-center border transition-all duration-300 ${isMuted ? 'bg-red-500/20 border-red-500/50 text-red-500' : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10'}`}
+          >
+             {isMuted ? <VolumeX size={24} /> : <Volume2 size={24} />}
+          </button>
 
+          <button 
+            onClick={onEndCall}
+            className="w-20 h-20 rounded-full bg-red-600 hover:bg-red-700 flex items-center justify-center text-white shadow-[0_0_30px_rgba(220,38,38,0.3)] hover:shadow-[0_0_40px_rgba(220,38,38,0.5)] transition-all transform hover:scale-105 active:scale-95"
+          >
+             <PhoneOff size={32} fill="currentColor" />
+          </button>
 
-       {/* Controls */}
-       <div className="flex items-center gap-6">
-            <button 
-                onClick={() => setIsMuted(!isMuted)}
-                disabled={status === 'idle'}
-                className={`w-12 h-12 rounded-full flex items-center justify-center shadow-md transition-all ${isMuted ? 'bg-red-50 text-red-500' : 'bg-white text-gray-600 hover:bg-gray-100'}`}
-            >
-                {isMuted ? <VolumeX size={20}/> : <Volume2 size={20}/>}
-            </button>
-
-            {status === 'idle' || status === 'error' ? (
-                <button 
-                    onClick={handleStartCall}
-                    className="px-8 py-3 rounded-full bg-green-500 text-white font-bold shadow-lg hover:bg-green-600 transform hover:scale-105 transition-all flex items-center gap-2"
-                >
-                    <Mic size={20} />
-                    {status === 'error' ? 'Retry' : 'Start Call'}
-                </button>
-            ) : (
-                <button 
-                    onClick={onEndCall}
-                    className="w-16 h-16 rounded-full flex items-center justify-center bg-red-500 text-white shadow-lg hover:bg-red-600 transform hover:scale-105 transition-all"
-                >
-                    <PhoneOff size={28} fill="currentColor" />
-                </button>
-            )}
-            
-            <button 
-                className={`w-12 h-12 rounded-full flex items-center justify-center text-gray-600 bg-white shadow-md transition-all ${status === 'listening' ? 'bg-green-50 ring-2 ring-green-500' : ''}`}
-                onClick={() => (status === 'idle' || status === 'error') ? handleStartCall() : null}
-            >
-                <Mic size={20} className={status === 'listening' ? 'text-green-500' : 'text-gray-400'}/>
-            </button>
+          <button 
+            onClick={() => status === 'idle' ? handleStartCall() : null}
+            className={`w-14 h-14 rounded-full flex items-center justify-center border transition-all duration-300 ${status === 'listening' ? 'bg-[var(--primary-color)]/20 border-[var(--primary-color)] text-[var(--primary-color)]' : 'bg-white/5 border-white/10 text-white/60'}`}
+          >
+             <Mic size={24} />
+          </button>
        </div>
     </div>
   );
