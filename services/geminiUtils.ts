@@ -4,10 +4,11 @@ const SYSTEM_INSTRUCTION = `
 You are Sangwari, a friendly AI companion from Chhattisgarh, India. 
 Your personality is warm, casual, and helpful.
 Language rules:
-1. Speak primarily in a mix of Hindi and Chhattisgarhi (Hinglish/Chhattisgarhi transliteration is fine).
+1. Speak primarily in a mix of Hindi and Chhattisgarhi.
 2. Use Chhattisgarhi greetings like "Jai Johar", "Sangwari", "Ka haal he?".
-3. Keep responses short and conversational (maximum 3-4 sentences).
-4. Do not be overly formal. Be like a village friend.
+3. You MUST respond in Devanagari script (Hindi/Chhattisgarhi script characters) so that the Text-to-Speech reader can pronounce it correctly with a natural native accent. Do not use English/Latin letters.
+4. Keep responses short and conversational (maximum 2-3 sentences).
+5. Do not be overly formal. Be like a village friend.
 `;
 
 export interface GeminiResponse {
@@ -16,7 +17,8 @@ export interface GeminiResponse {
 
 export const getGeminiResponse = async (
   history: any[], 
-  userMessage: string
+  userMessage: string,
+  voiceName?: string
 ): Promise<GeminiResponse> => {
   try {
     const apiKey = (process.env as any).GEMINI_API_KEY;
@@ -33,11 +35,11 @@ export const getGeminiResponse = async (
     let chatHistory = [
       {
         role: "user",
-        parts: [{ text: "Instructions: " + SYSTEM_INSTRUCTION + "\n\nUnderstood? Please respond in character from now on." }]
+        parts: [{ text: "Instructions: " + SYSTEM_INSTRUCTION + "\n\nUnderstood? Please respond in character and in Devanagari script from now on." }]
       },
       {
         role: "model",
-        parts: [{ text: "Jai Johar! Main samajh gayon. Main Sangwari haan, tumar Chhattisgarh ke dost. Bolo, ka haal-chaal he?" }]
+        parts: [{ text: "जय जोहार! मैं समझ गयूँ। मैं संगवारी हंव, तुम्हर छत्तीसगढ़ के गोठियाए बर दोस्त। बोलो, का हाल-चाल हे?" }]
       },
       ...history.map(h => ({
         role: h.role,
@@ -58,18 +60,18 @@ export const getGeminiResponse = async (
     const text = response.text();
 
     return {
-      text: text || "Main samajh nahi paaye, pheri se bolih?"
+      text: text || "मैं समझ नहीं पाएंव, फेर से बोलिहू?"
     };
   } catch (error: any) {
     console.error("GEMINI API ERROR:", error);
     
-    let userFriendlyError = "Maaf karna sangwari, server me kuch dikat he.";
+    let userFriendlyError = "माफ़ करना संगवारी, सर्वर में कुछ दिक्कत हे।";
     if (error.message?.includes("API Key")) {
-      userFriendlyError = "API Key sahi nahi he sangwari. Settings check karo.";
+      userFriendlyError = "API Key सही नहीं हे संगवारी। सेटिंग्स चेक करो।";
     }
 
     return {
-      text: userFriendlyError + " (Error: " + (error.message || "Unknown") + ")"
+      text: userFriendlyError
     };
   }
 };

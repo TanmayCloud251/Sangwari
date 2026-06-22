@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { AppSettings, DEFAULT_SETTINGS, DARK_SETTINGS } from '../types';
-import { Sun, Moon, Type, Palette, Layout, RotateCcw, Monitor } from 'lucide-react';
+import { Sun, Moon, Type, Palette, Layout, RotateCcw, Monitor, Volume2 } from 'lucide-react';
 
 interface SettingsViewProps {
   settings: AppSettings;
@@ -71,6 +71,28 @@ const SettingsView: React.FC<SettingsViewProps> = ({ settings, onUpdateSettings 
               <Moon className="text-indigo-400" />
               <span className="text-sm font-medium text-[var(--text-color)]">Dark Mode</span>
             </button>
+          </div>
+        </section>
+
+        {/* Gemini Voice Companion */}
+        <section className="bg-[var(--surface-color)] p-6 rounded-3xl border border-[var(--primary-color)]/10 shadow-sm space-y-4">
+          <h3 className="font-bold text-[var(--text-color)] flex items-center gap-2">
+            <Volume2 size={18} />
+            Sangwari Voice (Awaaz)
+          </h3>
+          <div>
+            <label className="text-xs uppercase tracking-wider font-bold opacity-50 block mb-2 text-[var(--text-color)]">Select Voice Companion</label>
+            <select 
+              value={settings.voiceName || 'Aoede'}
+              onChange={(e) => onUpdateSettings({ ...settings, voiceName: e.target.value })}
+              className="w-full bg-[var(--bg-color)] text-[var(--text-color)] p-3 rounded-xl border border-[var(--primary-color)]/10 outline-none"
+            >
+              <option value="Aoede">Aoede (Female - Clear & Expressive)</option>
+              <option value="Puck">Puck (Male - Playful & Energetic)</option>
+              <option value="Charon">Charon (Male - Soft & Gentle)</option>
+              <option value="Fenrir">Fenrir (Male - Deep & Warm)</option>
+              <option value="Kore">Kore (Male - Standard & Calm)</option>
+            </select>
           </div>
         </section>
 

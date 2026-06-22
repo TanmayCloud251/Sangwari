@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <!-- Dark Navy Blueish Circle Background -->
+  <circle cx="256" cy="256" r="240" fill="#0A1128" stroke="#FF9800" stroke-width="8" />
+  
+  <!-- Hindi Letter 'स' and Purnviram '।' in Theme Orange -->
+  <text x="252" y="275" 
+        font-family="'Poppins', sans-serif" 
+        font-size="230px" 
+        font-weight="bold" 
+        fill="#FF9800" 
+        text-anchor="middle"
+        dominant-baseline="central">स।</text>
+</svg>

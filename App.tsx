@@ -15,7 +15,7 @@ import { useFeedback } from './services/FeedbackContext';
 const DEFAULT_WELCOME_MSG: Message = {
   id: 'welcome-1',
   role: 'model',
-  text: 'Jai Johar! Main Sangwari haan. Tumar ka sewa kar sakat ho?',
+  text: 'जय जोहार! मैं संगवारी हंव। तुम्हर का सेवा कर सकत हंव?',
   timestamp: Date.now()
 };
 
@@ -173,6 +173,7 @@ const App: React.FC = () => {
         session={activeSession}
         onUpdateSession={handleUpdateSession}
         onEndCall={() => setCurrentScreen(AppScreen.HOME)} 
+        settings={settings}
       />
     );
   }
@@ -217,9 +218,9 @@ const App: React.FC = () => {
               <button onClick={() => setIsMobileMenuOpen(true)}>
                   <Menu className="text-[var(--text-color)]" />
               </button>
-              <span className="font-bold text-[var(--text-color)]">Sangwari</span>
+              <span className="font-bold text-xl text-[var(--primary-color)]" style={{ fontFamily: "'Poppins', sans-serif" }}>संगवारी</span>
           </div>
-          <div className="w-8 h-8 rounded-full bg-[var(--primary-color)] flex items-center justify-center text-white text-xs">SG</div>
+          <div className="w-8 h-8 rounded-full bg-[var(--primary-color)] flex items-center justify-center text-white text-xs font-bold">स।</div>
       </div>
 
       {/* Mobile Sidebar Overlay */}

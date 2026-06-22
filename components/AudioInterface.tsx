@@ -1,15 +1,16 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Mic, PhoneOff, Volume2, VolumeX, Sparkles } from 'lucide-react';
 import { getGeminiResponse } from '../services/geminiUtils';
-import { ChatSession, Message } from '../types';
+import { ChatSession, Message, AppSettings } from '../types';
 
 interface AudioInterfaceProps {
   session: ChatSession;
   onUpdateSession: (session: ChatSession) => void;
   onEndCall: () => void;
+  settings: AppSettings;
 }
 
-const AudioInterface: React.FC<AudioInterfaceProps> = ({ session, onUpdateSession, onEndCall }) => {
+const AudioInterface: React.FC<AudioInterfaceProps> = ({ session, onUpdateSession, onEndCall, settings }) => {
   const [status, setStatus] = useState<'idle' | 'connecting' | 'listening' | 'thinking' | 'speaking' | 'error'>('idle');
   const [isMuted, setIsMuted] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -17,6 +18,7 @@ const AudioInterface: React.FC<AudioInterfaceProps> = ({ session, onUpdateSessio
   const recognitionRef = useRef<any>(null);
   const isMounted = useRef(true);
   const audioStarted = useRef(false);
+  const audioObjRef = useRef<HTMLAudioElement | null>(null);
 
   // Initialize Speech Recognition
   const initSpeechRecognition = () => {
@@ -100,7 +102,7 @@ const AudioInterface: React.FC<AudioInterfaceProps> = ({ session, onUpdateSessio
     }));
 
     try {
-      const response = await getGeminiResponse(history, text);
+      const response = await getGeminiResponse(history, text, settings.voiceName);
       
       // 3. Create Model Message
       const modelMsg: Message = {
@@ -126,34 +128,153 @@ const AudioInterface: React.FC<AudioInterfaceProps> = ({ session, onUpdateSessio
   };
 
   const startListening = () => {
-    if (recognitionRef.current && !isMuted && (status === 'listening' || status === 'idle' || status === 'connecting' || status === 'speaking')) {
+    if (recognitionRef.current && !isMuted && status === 'listening') {
       try {
         recognitionRef.current.start();
       } catch (e) {}
     }
   };
 
-  const handleStartCall = () => {
+  const handleStartCall = async () => {
     initSpeechRecognition();
     setStatus('connecting');
     setInterimTranscript('');
     
     if (!audioStarted.current) {
         audioStarted.current = true;
-        speak("Jai Johar! Bolih, main sunat haan.");
+        setStatus('thinking');
+        try {
+          // Fetch a warm welcoming voice greeting from Gemini
+          const response = await getGeminiResponse([], "Jai Johar! Ek chota aur madhur greeting bolo start karne ke liye.", settings.voiceName);
+          speak(response.text);
+        } catch (e) {
+          speak("जय जोहार! बोलिहू, मैं सुनत हंव।");
+        }
     } else {
-        startListening();
+        setStatus('listening');
+        try {
+          recognitionRef.current.start();
+        } catch (e) {}
     }
   };
 
   const speak = (text: string) => {
     if (!isMounted.current) return;
+    
+    // Cancel browser TTS first
     window.speechSynthesis.cancel();
     
+    // Stop any HTML5 audio currently playing
+    if (audioObjRef.current) {
+      audioObjRef.current.pause();
+      audioObjRef.current.src = '';
+    }
+
+    if (isMuted) {
+      setStatus('listening');
+      startListening();
+      return;
+    }
+
+    // Clean up text (remove markdown symbols, stars, emojis, etc.)
+    const cleanText = text
+      .replace(/[*#_`~]/g, '')
+      .replace(/[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF]/g, "")
+      .trim();
+
+    if (!cleanText) {
+      setStatus('listening');
+      startListening();
+      return;
+    }
+
+    // Split text into small chunks of max 150 chars (sentence boundaries preferred)
+    const chunks: string[] = [];
+    const sentences = cleanText.split(/([.!?।|]+)/);
+    let currentChunk = '';
+    
+    for (let i = 0; i < sentences.length; i++) {
+      const part = sentences[i];
+      if (!part) continue;
+      
+      if ((currentChunk + part).length > 150) {
+        if (currentChunk.trim()) {
+          chunks.push(currentChunk.trim());
+        }
+        currentChunk = part;
+      } else {
+        currentChunk += part;
+      }
+    }
+    if (currentChunk.trim()) {
+      chunks.push(currentChunk.trim());
+    }
+
+    if (chunks.length === 0) {
+      setStatus('listening');
+      startListening();
+      return;
+    }
+
+    setStatus('speaking');
+    let currentIdx = 0;
+
+    const playNextChunk = () => {
+      if (currentIdx >= chunks.length) {
+        if (isMounted.current) {
+          setInterimTranscript('');
+          setStatus('listening');
+          startListening();
+        }
+        return;
+      }
+
+      const chunkText = chunks[currentIdx];
+      const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&tl=hi&client=tw-ob&q=${encodeURIComponent(chunkText)}`;
+      
+      const audio = new Audio(ttsUrl);
+      audioObjRef.current = audio;
+
+      audio.onended = () => {
+        currentIdx++;
+        playNextChunk();
+      };
+
+      audio.onerror = (e) => {
+        console.error("Google TTS chunk failed, falling back to browser SpeechSynthesis for remainder", e);
+        fallbackSpeak(chunks.slice(currentIdx).join(' '));
+      };
+
+      audio.play().catch(err => {
+        console.error("Google TTS chunk play failed, falling back to browser SpeechSynthesis for remainder", err);
+        fallbackSpeak(chunks.slice(currentIdx).join(' '));
+      });
+    };
+
+    playNextChunk();
+  };
+
+  const fallbackSpeak = (text: string) => {
+    if (!isMounted.current || isMuted) {
+      setStatus('listening');
+      startListening();
+      return;
+    }
+
+    window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     const voices = window.speechSynthesis.getVoices();
-    const hindiVoice = voices.find(v => v.lang.includes('hi') || v.lang.includes('IN'));
-    if (hindiVoice) utterance.voice = hindiVoice;
+    
+    // Look for specified voice fallback, otherwise look for general Hindi/IN voice
+    let matchedVoice = null;
+    if (settings.voiceName) {
+      matchedVoice = voices.find(v => v.name.includes(settings.voiceName));
+    }
+    if (!matchedVoice) {
+      matchedVoice = voices.find(v => v.lang.includes('hi') || v.lang.includes('IN'));
+    }
+    
+    if (matchedVoice) utterance.voice = matchedVoice;
     utterance.lang = 'hi-IN';
     utterance.rate = 1.0;
     
@@ -181,6 +302,10 @@ const AudioInterface: React.FC<AudioInterfaceProps> = ({ session, onUpdateSessio
       isMounted.current = false;
       if (recognitionRef.current) try { recognitionRef.current.stop(); } catch(e) {}
       window.speechSynthesis.cancel();
+      if (audioObjRef.current) {
+        audioObjRef.current.pause();
+        audioObjRef.current.src = '';
+      }
     };
   }, []);
 
@@ -188,6 +313,10 @@ const AudioInterface: React.FC<AudioInterfaceProps> = ({ session, onUpdateSessio
     if (isMuted) {
       if (recognitionRef.current) try { recognitionRef.current.stop(); } catch(e) {}
       window.speechSynthesis.cancel();
+      if (audioObjRef.current) {
+        audioObjRef.current.pause();
+        audioObjRef.current.src = '';
+      }
     } else if (status === 'listening') {
       startListening();
     }

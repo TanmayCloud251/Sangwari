@@ -46,6 +46,7 @@ export interface AppSettings {
   surfaceColor: string;
   textColor: string;
   sidebarPosition: 'top' | 'right' | 'bottom' | 'left';
+  voiceName: string;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -58,6 +59,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   surfaceColor: '#FFF8E1', // Cream 100
   textColor: '#1F2937', // Gray 800
   sidebarPosition: 'top',
+  voiceName: 'Aoede',
 };
 
 export const DARK_SETTINGS: AppSettings = {
@@ -70,4 +72,5 @@ export const DARK_SETTINGS: AppSettings = {
   surfaceColor: '#1F2937', // Gray 800
   textColor: '#F9FAFB', // Gray 50
   sidebarPosition: 'top',
+  voiceName: 'Aoede',
 };
