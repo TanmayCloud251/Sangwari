@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Mic, PhoneOff, Volume2, VolumeX, Sparkles } from 'lucide-react';
-import { getGeminiResponse } from '../services/geminiUtils';
+import { getGeminiResponse, getGeminiTTS } from '../services/geminiUtils';
 import { ChatSession, Message, AppSettings } from '../types';
 
 interface AudioInterfaceProps {
@@ -15,6 +15,7 @@ const AudioInterface: React.FC<AudioInterfaceProps> = ({ session, onUpdateSessio
   const [isMuted, setIsMuted] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [interimTranscript, setInterimTranscript] = useState('');
+  const [selectedVoice, setSelectedVoice] = useState<string>(settings.voiceName || 'Aoede');
   const recognitionRef = useRef<any>(null);
   const isMounted = useRef(true);
   const audioStarted = useRef(false);
@@ -102,7 +103,7 @@ const AudioInterface: React.FC<AudioInterfaceProps> = ({ session, onUpdateSessio
     }));
 
     try {
-      const response = await getGeminiResponse(history, text, settings.voiceName);
+      const response = await getGeminiResponse(history, text, selectedVoice, true);
       
       // 3. Create Model Message
       const modelMsg: Message = {
@@ -145,7 +146,7 @@ const AudioInterface: React.FC<AudioInterfaceProps> = ({ session, onUpdateSessio
         setStatus('thinking');
         try {
           // Fetch a warm welcoming voice greeting from Gemini
-          const response = await getGeminiResponse([], "Jai Johar! Ek chota aur madhur greeting bolo start karne ke liye.", settings.voiceName);
+          const response = await getGeminiResponse([], "Jai Johar! Ek chota aur madhur greeting bolo start karne ke liye.", selectedVoice, true);
           speak(response.text);
         } catch (e) {
           speak("जय जोहार! बोलिहू, मैं सुनत हंव।");
@@ -158,7 +159,54 @@ const AudioInterface: React.FC<AudioInterfaceProps> = ({ session, onUpdateSessio
     }
   };
 
-  const speak = (text: string) => {
+  // Helper to convert base64 PCM (linear16, 24kHz, mono) to WAV Blob URL
+  const pcmToWav = (base64Pcm: string, sampleRate = 24000): string => {
+    const binaryString = window.atob(base64Pcm);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    
+    const buffer = new ArrayBuffer(44 + len);
+    const view = new DataView(buffer);
+    
+    /* RIFF identifier */
+    view.setUint32(0, 0x52494646, false); // "RIFF"
+    /* file length */
+    view.setUint32(4, 36 + len, true);
+    /* RIFF type */
+    view.setUint32(8, 0x57415645, false); // "WAVE"
+    /* format chunk identifier */
+    view.setUint32(12, 0x666d7420, false); // "fmt "
+    /* format chunk length */
+    view.setUint32(16, 16, true);
+    /* sample format (raw PCM = 1) */
+    view.setUint16(20, 1, true);
+    /* channel count (mono = 1) */
+    view.setUint16(22, 1, true);
+    /* sample rate */
+    view.setUint32(24, sampleRate, true);
+    /* byte rate (sample rate * block align) */
+    view.setUint32(28, sampleRate * 2, true);
+    /* block align (channel count * bytes per sample) */
+    view.setUint16(32, 2, true);
+    /* bits per sample (16) */
+    view.setUint16(34, 16, true);
+    /* data chunk identifier */
+    view.setUint32(36, 0x64617461, false); // "data"
+    /* data chunk length */
+    view.setUint32(40, len, true);
+    
+    // Copy PCM data
+    const pcmView = new Uint8Array(buffer, 44);
+    pcmView.set(bytes);
+    
+    const blob = new Blob([buffer], { type: 'audio/wav' });
+    return URL.createObjectURL(blob);
+  };
+
+  const speak = async (text: string) => {
     if (!isMounted.current) return;
     
     // Cancel browser TTS first
@@ -188,70 +236,35 @@ const AudioInterface: React.FC<AudioInterfaceProps> = ({ session, onUpdateSessio
       return;
     }
 
-    // Split text into small chunks of max 150 chars (sentence boundaries preferred)
-    const chunks: string[] = [];
-    const sentences = cleanText.split(/([.!?।|]+)/);
-    let currentChunk = '';
-    
-    for (let i = 0; i < sentences.length; i++) {
-      const part = sentences[i];
-      if (!part) continue;
-      
-      if ((currentChunk + part).length > 150) {
-        if (currentChunk.trim()) {
-          chunks.push(currentChunk.trim());
-        }
-        currentChunk = part;
-      } else {
-        currentChunk += part;
-      }
-    }
-    if (currentChunk.trim()) {
-      chunks.push(currentChunk.trim());
-    }
-
-    if (chunks.length === 0) {
-      setStatus('listening');
-      startListening();
-      return;
-    }
-
     setStatus('speaking');
-    let currentIdx = 0;
+    try {
+      const base64Pcm = await getGeminiTTS(cleanText, selectedVoice);
+      const wavUrl = pcmToWav(base64Pcm);
+      
+      const audio = new Audio(wavUrl);
+      audioObjRef.current = audio;
 
-    const playNextChunk = () => {
-      if (currentIdx >= chunks.length) {
+      audio.onended = () => {
         if (isMounted.current) {
           setInterimTranscript('');
           setStatus('listening');
           startListening();
         }
-        return;
-      }
-
-      const chunkText = chunks[currentIdx];
-      const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&tl=hi&client=tw-ob&q=${encodeURIComponent(chunkText)}`;
-      
-      const audio = new Audio(ttsUrl);
-      audioObjRef.current = audio;
-
-      audio.onended = () => {
-        currentIdx++;
-        playNextChunk();
       };
 
       audio.onerror = (e) => {
-        console.error("Google TTS chunk failed, falling back to browser SpeechSynthesis for remainder", e);
-        fallbackSpeak(chunks.slice(currentIdx).join(' '));
+        console.error("Gemini TTS playback failed, falling back to browser SpeechSynthesis", e);
+        fallbackSpeak(cleanText);
       };
 
       audio.play().catch(err => {
-        console.error("Google TTS chunk play failed, falling back to browser SpeechSynthesis for remainder", err);
-        fallbackSpeak(chunks.slice(currentIdx).join(' '));
+        console.error("Gemini TTS play failed, falling back to browser SpeechSynthesis", err);
+        fallbackSpeak(cleanText);
       });
-    };
-
-    playNextChunk();
+    } catch (error) {
+      console.error("Gemini TTS generation error, falling back to browser SpeechSynthesis", error);
+      fallbackSpeak(cleanText);
+    }
   };
 
   const fallbackSpeak = (text: string) => {
@@ -267,8 +280,8 @@ const AudioInterface: React.FC<AudioInterfaceProps> = ({ session, onUpdateSessio
     
     // Look for specified voice fallback, otherwise look for general Hindi/IN voice
     let matchedVoice = null;
-    if (settings.voiceName) {
-      matchedVoice = voices.find(v => v.name.includes(settings.voiceName));
+    if (selectedVoice) {
+      matchedVoice = voices.find(v => v.name.includes(selectedVoice));
     }
     if (!matchedVoice) {
       matchedVoice = voices.find(v => v.lang.includes('hi') || v.lang.includes('IN'));
@@ -344,6 +357,25 @@ const AudioInterface: React.FC<AudioInterfaceProps> = ({ session, onUpdateSessio
              <h2 className="text-xl font-medium text-white/90 tracking-wider">SANGWARI LIVE</h2>
           </div>
           <p className="text-white/40 text-sm font-light">Chhattisgarhi Voice Companion</p>
+       </div>
+
+       {/* Voice Selector */}
+       <div className="z-10 flex gap-2 justify-center bg-white/5 p-1 rounded-full border border-white/10 backdrop-blur-md max-w-[280px] w-full mx-auto">
+          {(['Aoede', 'Charon', 'Fenrir'] as const).map(voice => (
+             <button
+                key={voice}
+                onClick={() => setSelectedVoice(voice)}
+                className={`flex-1 px-3 py-1.5 rounded-full text-[10px] uppercase tracking-wider font-semibold transition-all duration-300 ${
+                   selectedVoice === voice
+                      ? 'bg-[var(--primary-color)] text-white shadow-[0_0_15px_rgba(255,152,0,0.35)] scale-105'
+                      : 'text-white/60 hover:text-white hover:bg-white/5'
+                }`}
+             >
+                {voice === 'Aoede' ? 'Aoede (नारी)' :
+                 voice === 'Charon' ? 'Charon (नरम)' :
+                 'Fenrir (गंभीर)'}
+             </button>
+          ))}
        </div>
 
        {/* Central Interactive Orb */}
